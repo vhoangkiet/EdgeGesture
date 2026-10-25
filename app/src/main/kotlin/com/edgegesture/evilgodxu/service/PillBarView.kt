@@ -3,44 +3,56 @@ package com.edgegesture.evilgodxu.service
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.view.View
 import android.view.animation.OvershootInterpolator
 
+/**
+ * Thanh điều hướng Pixel Navigation Pill (phong cách Android 15 / 16 Expressive):
+ * - Viên thuốc nổi bo tròn hoàn hảo với bóng mờ tương phản cao.
+ * - Hiệu ứng kéo dãn chiều ngang (Elastic Band Tension) theo lực vuốt ngón tay lên trên.
+ * - Khi chạm ngưỡng Recent Apps: Pill mở rộng thành dạng dock rộng, đổi màu xanh Google Material.
+ * - Cơ chế hồi vị đàn hồi đa pha (Spring Oscillation) khi nhả tay.
+ */
 class PillBarView(context: Context) : View(context) {
 
     private val density = context.resources.displayMetrics.density
 
-    private val normalFillColor = 0xE6FFFFFF.toInt() // Trắng đục 90%
-    private val recentsFillColor = 0xFF4285F4.toInt() // Xanh Google khi giữ mở Recents
+    private val normalFillColor = 0xF2FFFFFF.toInt() // Trắng đục 95%
+    private val recentsFillColor = 0xFF4285F4.toInt() // Xanh Google Material Accent
+    private val shadowColor = 0x55000000
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = normalFillColor
         style = Paint.Style.FILL
+        setShadowLayer(3f * density, 0f, 1.5f * density, shadowColor)
     }
 
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x33000000 // Viền mờ màu tối giúp nhìn rõ trên nền trắng
+        color = 0x33000000 // Viền mờ chống lẫn trên nền sáng
         style = Paint.Style.STROKE
         strokeWidth = 1f * density
     }
 
     private val pillRect = RectF()
     private var pillWidthPx = 72f * density
-    private var pillHeightPx = 4f * density
-    private var cornerRadiusPx = 2f * density
+    private var pillHeightPx = 4.2f * density
+    private var cornerRadiusPx = 2.1f * density
     private var marginBottomPx = 6f * density
 
     private var currentTranslationY = 0f
     private var currentScaleX = 1f
     private var currentScaleY = 1f
+    private var isCommittedRecents = false
 
     private var bounceAnimator: ValueAnimator? = null
 
     init {
         isClickable = false
         isFocusable = false
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
     fun updateDimensions(widthPx: Float, heightPx: Float, marginBottomPx: Float) {
@@ -73,18 +85,20 @@ class PillBarView(context: Context) : View(context) {
     fun onSwipeProgress(dy: Float, progress: Float, isHoldingRecents: Boolean) {
         bounceAnimator?.cancel()
 
-        // Độ dịch chuyển theo ngón tay (có hãm đà)
-        currentTranslationY = - (dy * 0.45f).coerceAtMost(48f * density)
+        // Độ dịch chuyển lên trên (có hãm đà quán tính)
+        currentTranslationY = - (dy * 0.42f).coerceAtMost(52f * density)
 
         if (isHoldingRecents) {
-            // Khi giữ lâu kích hoạt Recent Apps: dãn rộng và đổi màu nổi bật
-            currentScaleX = 1.35f
-            currentScaleY = 1.15f
+            isCommittedRecents = true
+            // Android 16 Dock expansion: Pill nở rộng mạnh và chuyển sang màu xanh Google
+            currentScaleX = 1.38f
+            currentScaleY = 1.25f
             fillPaint.color = recentsFillColor
         } else {
-            // Đàn hồi theo chiều vuốt
-            currentScaleX = 1f + (progress * 0.12f).coerceAtMost(0.25f)
-            currentScaleY = (1f - (progress * 0.08f)).coerceAtLeast(0.75f)
+            isCommittedRecents = false
+            // Dãn dẹp đàn hồi cao su theo ngón tay
+            currentScaleX = 1f + (progress * 0.22f).coerceAtMost(0.35f)
+            currentScaleY = (1f - (progress * 0.08f)).coerceAtLeast(0.78f)
             fillPaint.color = normalFillColor
         }
 
@@ -98,22 +112,32 @@ class PillBarView(context: Context) : View(context) {
         val startY = currentTranslationY
         val startSx = currentScaleX
         val startSy = currentScaleY
+        val startColor = fillPaint.color
 
         val anim = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 260
-            interpolator = OvershootInterpolator(1.4f) // Nảy nhẹ đặc trưng phong cách Pixel
+            duration = 270
+            interpolator = OvershootInterpolator(1.45f) // Spring bounce đặc trưng Android 16
             addUpdateListener { va ->
                 val fraction = va.animatedFraction
                 currentTranslationY = startY * (1f - fraction)
                 currentScaleX = startSx + (1f - startSx) * fraction
                 currentScaleY = startSy + (1f - startSy) * fraction
-                fillPaint.color = normalFillColor
+                fillPaint.color = blendColors(startColor, normalFillColor, fraction)
                 updateRect()
                 invalidate()
             }
         }
         bounceAnimator = anim
         anim.start()
+    }
+
+    private fun blendColors(from: Int, to: Int, ratio: Float): Int {
+        val inverseRatio = 1f - ratio
+        val a = (Color.alpha(from) * inverseRatio + Color.alpha(to) * ratio).toInt()
+        val r = (Color.red(from) * inverseRatio + Color.red(to) * ratio).toInt()
+        val g = (Color.green(from) * inverseRatio + Color.green(to) * ratio).toInt()
+        val b = (Color.blue(from) * inverseRatio + Color.blue(to) * ratio).toInt()
+        return Color.argb(a, r, g, b)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -123,7 +147,7 @@ class PillBarView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawRoundRect(pillRect, cornerRadiusPx, cornerRadiusPx, fillPaint)
-        canvas.drawRoundRect(pillRect, cornerRadiusPx, cornerRadiusPx, strokePaint)
+        canvas.drawRoundRect(pillRect, cornerRadiusPx * currentScaleY, cornerRadiusPx * currentScaleY, fillPaint)
+        canvas.drawRoundRect(pillRect, cornerRadiusPx * currentScaleY, cornerRadiusPx * currentScaleY, strokePaint)
     }
 }

@@ -68,6 +68,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edgegesture.evilgodxu.data.LitePreferences
 import com.edgegesture.evilgodxu.data.LiteSettings
+import com.edgegesture.evilgodxu.data.SecureSettingsHelper
 import com.edgegesture.evilgodxu.service.EdgeGestureAccessibilityService
 import com.edgegesture.evilgodxu.ui.theme.AppSwitch
 import com.edgegesture.evilgodxu.ui.theme.MyApplicationTheme
@@ -121,12 +122,20 @@ fun MainScreen(
     val settings by LitePreferences.settingsFlow.collectAsStateWithLifecycle()
 
     var isServiceActive by remember { mutableStateOf(isAccessibilityServiceEnabled(context)) }
+    var hasSecurePermission by remember { mutableStateOf(SecureSettingsHelper.hasPermission(context)) }
+    var isMiuiNavbarHidden by remember { mutableStateOf(SecureSettingsHelper.isMiuiNavbarHidden(context)) }
+    var isStockBackDisabled by remember { mutableStateOf(SecureSettingsHelper.isStockBackDisabled(context)) }
+    var isMiuiGestureLineHidden by remember { mutableStateOf(SecureSettingsHelper.isMiuiGestureLineHidden(context)) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isServiceActive = isAccessibilityServiceEnabled(context)
+                hasSecurePermission = SecureSettingsHelper.hasPermission(context)
+                isMiuiNavbarHidden = SecureSettingsHelper.isMiuiNavbarHidden(context)
+                isStockBackDisabled = SecureSettingsHelper.isStockBackDisabled(context)
+                isMiuiGestureLineHidden = SecureSettingsHelper.isMiuiGestureLineHidden(context)
                 EdgeGestureAccessibilityService.refresh()
             }
         }
@@ -176,12 +185,34 @@ fun MainScreen(
                 )
             }
 
-            // 2. Hướng dẫn ADB Overscan đẩy ứng dụng lên (Android 10)
+            // 2. Can thiệp hệ thống sâu qua ADB (WRITE_SECURE_SETTINGS)
+            item {
+                SecureSettingsCard(
+                    hasPermission = hasSecurePermission,
+                    isMiuiNavbarHidden = isMiuiNavbarHidden,
+                    isStockBackDisabled = isStockBackDisabled,
+                    isMiuiGestureLineHidden = isMiuiGestureLineHidden,
+                    onToggleMiuiNavbar = { checked ->
+                        SecureSettingsHelper.setMiuiNavbarHidden(context, checked)
+                        isMiuiNavbarHidden = SecureSettingsHelper.isMiuiNavbarHidden(context)
+                    },
+                    onToggleStockBack = { checked ->
+                        SecureSettingsHelper.setStockBackDisabled(context, checked)
+                        isStockBackDisabled = SecureSettingsHelper.isStockBackDisabled(context)
+                    },
+                    onToggleMiuiGestureLine = { checked ->
+                        SecureSettingsHelper.setMiuiGestureLineHidden(context, checked)
+                        isMiuiGestureLineHidden = SecureSettingsHelper.isMiuiGestureLineHidden(context)
+                    }
+                )
+            }
+
+            // 3. Hướng dẫn ADB Overscan đẩy ứng dụng lên (Android 10)
             item {
                 AdbOverscanGuideCard()
             }
 
-            // 3. Lưu ý MIUI 12
+            // 4. Lưu ý MIUI 12
             item {
                 MiuiNoticeCard()
             }
@@ -551,6 +582,131 @@ fun SliderRow(
                 activeTrackColor = MaterialTheme.colorScheme.primary
             )
         )
+    }
+}
+
+@Composable
+fun SecureSettingsCard(
+    hasPermission: Boolean,
+    isMiuiNavbarHidden: Boolean,
+    isStockBackDisabled: Boolean,
+    isMiuiGestureLineHidden: Boolean,
+    onToggleMiuiNavbar: (Boolean) -> Unit,
+    onToggleStockBack: (Boolean) -> Unit,
+    onToggleMiuiGestureLine: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val pmCommand = "adb shell pm grant com.edgegesture.evilgodxu android.permission.WRITE_SECURE_SETTINGS"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (hasPermission) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (hasPermission) Icons.Default.CheckCircle else Icons.Default.Settings,
+                    contentDescription = null,
+                    tint = if (hasPermission) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Can thiệp hệ thống sâu (WRITE_SECURE_SETTINGS)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (hasPermission)
+                            "Đã cấp quyền qua ADB ✓ (Có thể bật/tắt trực tiếp)"
+                        else
+                            "Chưa cấp quyền ADB (Xem lệnh mở khóa bên dưới)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (hasPermission) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (!hasPermission) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Cắm cáp vào máy tính và chạy lệnh sau 1 lần duy nhất để mở khóa các công tắc điều khiển hệ thống trực tiếp trong app:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                AdbCommandBox(
+                    label = "Lệnh cấp quyền cho EdgeGesture Lite:",
+                    command = pmCommand,
+                    onCopy = {
+                        clipboardManager.setText(AnnotatedString(pmCommand))
+                        Toast.makeText(context, "Đã sao chép lệnh cấp quyền!", Toast.LENGTH_SHORT).show()
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+            // Switch 1: Ẩn 3 nút điều hướng MIUI
+            SwitchRow(
+                title = "Ẩn 3 nút điều hướng MIUI",
+                subtitle = "Ép ẩn 3 nút (Back, Home, Recents) kể cả khi dùng Launcher ngoài",
+                checked = isMiuiNavbarHidden,
+                onCheckedChange = { checked ->
+                    if (hasPermission) {
+                        onToggleMiuiNavbar(checked)
+                    } else {
+                        Toast.makeText(context, "Vui lòng chạy lệnh ADB trên máy tính để cấp quyền trước!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+            // Switch 2: Tắt cử chỉ Back mặc định của máy
+            SwitchRow(
+                title = "Tắt cử chỉ Back mặc định mép viền",
+                subtitle = "Vô hiệu hóa cử chỉ Back của MIUI để tránh bị vuốt 2 lần Back cùng lúc",
+                checked = isStockBackDisabled,
+                onCheckedChange = { checked ->
+                    if (hasPermission) {
+                        onToggleStockBack(checked)
+                    } else {
+                        Toast.makeText(context, "Vui lòng chạy lệnh ADB trên máy tính để cấp quyền trước!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+            // Switch 3: Ẩn thanh gạch trắng gốc MIUI
+            SwitchRow(
+                title = "Ẩn thanh gạch trắng gốc MIUI",
+                subtitle = "Ẩn thanh chỉ báo toàn màn hình mặc định của Xiaomi",
+                checked = isMiuiGestureLineHidden,
+                onCheckedChange = { checked ->
+                    if (hasPermission) {
+                        onToggleMiuiGestureLine(checked)
+                    } else {
+                        Toast.makeText(context, "Vui lòng chạy lệnh ADB trên máy tính để cấp quyền trước!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+        }
     }
 }
 

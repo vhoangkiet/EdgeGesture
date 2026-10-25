@@ -66,6 +66,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import com.edgegesture.evilgodxu.data.CrashHandler
 import com.edgegesture.evilgodxu.data.LitePreferences
 import com.edgegesture.evilgodxu.data.LiteSettings
 import com.edgegesture.evilgodxu.data.SecureSettingsHelper
@@ -126,6 +136,7 @@ fun MainScreen(
     var isMiuiNavbarHidden by remember { mutableStateOf(SecureSettingsHelper.isMiuiNavbarHidden(context)) }
     var isStockBackDisabled by remember { mutableStateOf(SecureSettingsHelper.isStockBackDisabled(context)) }
     var isMiuiGestureLineHidden by remember { mutableStateOf(SecureSettingsHelper.isMiuiGestureLineHidden(context)) }
+    var crashLog by remember { mutableStateOf(CrashHandler.getLatestCrashLog(context)) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -136,6 +147,7 @@ fun MainScreen(
                 isMiuiNavbarHidden = SecureSettingsHelper.isMiuiNavbarHidden(context)
                 isStockBackDisabled = SecureSettingsHelper.isStockBackDisabled(context)
                 isMiuiGestureLineHidden = SecureSettingsHelper.isMiuiGestureLineHidden(context)
+                crashLog = CrashHandler.getLatestCrashLog(context)
                 EdgeGestureAccessibilityService.refresh()
             }
         }
@@ -177,11 +189,35 @@ fun MainScreen(
         ) {
             item { Spacer(modifier = Modifier.height(4.dp)) }
 
+            // Thẻ thông báo Crash Log nếu phát hiện sự cố ngầm trước đó
+            if (crashLog != null) {
+                item {
+                    CrashReportCard(
+                        crashLog = crashLog!!,
+                        onClear = {
+                            CrashHandler.clearCrashLog(context)
+                            crashLog = null
+                        }
+                    )
+                }
+            }
+
             // 1. Trạng thái dịch vụ Accessibility
             item {
                 ServiceStatusCard(
                     isActive = isServiceActive,
-                    onOpenAccessibilitySettings = onOpenAccessibilitySettings
+                    hasSecurePermission = hasSecurePermission,
+                    onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                    onAutoEnableService = {
+                        val success = SecureSettingsHelper.enableAccessibilityService(context)
+                        if (success) {
+                            Toast.makeText(context, "Đã gửi lệnh kích hoạt Dịch vụ Trợ năng qua ADB!", Toast.LENGTH_SHORT).show()
+                            isServiceActive = isAccessibilityServiceEnabled(context)
+                        } else {
+                            Toast.makeText(context, "Kích hoạt tự động thất bại, mở Cài đặt thủ công...", Toast.LENGTH_SHORT).show()
+                            onOpenAccessibilitySettings()
+                        }
+                    }
                 )
             }
 
@@ -426,9 +462,113 @@ fun MainScreen(
 }
 
 @Composable
+fun CrashReportCard(
+    crashLog: String,
+    onClear: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFEBEE)
+        ),
+        border = BorderStroke(1.dp, Color(0xFFEF5350))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFC62828),
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Phát hiện sự cố Crash gần nhất!",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFB71C1C)
+                    )
+                    Text(
+                        text = "Dịch vụ hoặc ứng dụng đã bị dừng đột ngột trước đó.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFC62828)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (isExpanded) {
+                Surface(
+                    color = Color(0xFF212121),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp)
+                ) {
+                    val scrollState = rememberScrollState()
+                    Text(
+                        text = crashLog,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        color = Color(0xFFFFCDD2),
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .verticalScroll(scrollState)
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (isExpanded) "Thu gọn log" else "Xem chi tiết lỗi")
+                }
+
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(crashLog))
+                        Toast.makeText(context, "Đã sao chép Log vào bộ nhớ tạm", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                ) {
+                    Text("Sao chép")
+                }
+
+                IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Xóa Log",
+                        tint = Color(0xFFC62828)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun ServiceStatusCard(
     isActive: Boolean,
-    onOpenAccessibilitySettings: () -> Unit
+    hasSecurePermission: Boolean,
+    onOpenAccessibilitySettings: () -> Unit,
+    onAutoEnableService: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -466,14 +606,25 @@ fun ServiceStatusCard(
 
             if (!isActive) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Button(
+                if (hasSecurePermission) {
+                    Button(
+                        onClick = onAutoEnableService,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Tự động kích hoạt ngay (1 chạm qua ADB)")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                OutlinedButton(
                     onClick = onOpenAccessibilitySettings,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(imageVector = Icons.Default.Settings, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Bật Dịch Vụ Tiếp Cận")
+                    Text(text = "Mở Cài Đặt Trợ Năng Hệ Thống")
                 }
             }
         }
@@ -502,13 +653,13 @@ fun MiuiNoticeCard() {
             Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text(
-                    text = "Mẹo giữ chạy nền ổn định trên MIUI 12 (Redmi Note 8):",
+                    text = "Mẹo chống tắt ngầm & mất quyền trên MIUI / HyperOS:",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "1. Vào Cài đặt > Ứng dụng > Quản lý ứng dụng > EdgeGesture Lite > Bật 'Tự khởi chạy' (Autostart).\n2. Vào Tiết kiệm pin > Chọn 'Không giới hạn' (No restrictions).\n3. Trong Đa nhiệm, vuốt khóa ứng dụng để MIUI không dọn bộ nhớ.",
+                    text = "1. KHÓA ỨNG DỤNG TRONG ĐA NHIỆM (Quan trọng nhất):\n   • Mở Đa nhiệm > Nhấn giữ EdgeGesture Lite > Bấm icon Ổ KHÓA.\n   • Hoặc vào app Bảo mật > Tăng tốc độ > Cài đặt bánh răng > Khóa ứng dụng > Bật EdgeGesture Lite.\n   (Nếu không khóa, MIUI sẽ force-stop app và tắt quyền Trợ năng khi gạt xóa đa nhiệm).\n\n2. TẮT TỰ ĐỘNG THU HỒI QUYỀN (Android 11+):\n   • Vào Cài đặt > Ứng dụng > Quản lý ứng dụng > EdgeGesture Lite > TẮT 'Xóa quyền và giải phóng dung lượng' (hoặc 'Tạm dừng hoạt động ứng dụng nếu không dùng').\n\n3. BẬT TỰ KHỞI CHẠY & PIN KHÔNG GIỚI HẠN:\n   • Bật 'Tự khởi chạy' (Autostart).\n   • Tiết kiệm pin chọn 'Không giới hạn' (No restrictions).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp

@@ -97,10 +97,44 @@ object SecureSettingsHelper {
         } catch (_: Exception) {
             try {
                 val process = Runtime.getRuntime().exec(arrayOf("wm", "overscan", "0", "0", "0", bottomPx.toString()))
-                process.waitFor() == 0
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    process.waitFor(300, java.util.concurrent.TimeUnit.MILLISECONDS)
+                }
+                true
             } catch (_: Exception) {
                 false
             }
+        }
+    }
+
+    // 5. Tự động phục hồi / kích hoạt lại Dịch vụ Trợ năng nếu lỡ bị hệ thống tắt
+    fun enableAccessibilityService(context: Context): Boolean {
+        if (!hasPermission(context)) return false
+        return try {
+            val serviceComponent = "${context.packageName}/com.edgegesture.evilgodxu.service.EdgeGestureAccessibilityService"
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+
+            val serviceList = enabledServices.split(":").filter { it.isNotBlank() }.toMutableList()
+            if (!serviceList.any { it.equals(serviceComponent, ignoreCase = true) }) {
+                serviceList.add(serviceComponent)
+                val newEnabledServices = serviceList.joinToString(":")
+                Settings.Secure.putString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    newEnabledServices
+                )
+            }
+            Settings.Secure.putString(
+                context.contentResolver,
+                Settings.Secure.ACCESSIBILITY_ENABLED,
+                "1"
+            )
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 }

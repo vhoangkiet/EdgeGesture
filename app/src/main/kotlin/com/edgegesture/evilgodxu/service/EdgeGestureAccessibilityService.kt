@@ -59,15 +59,27 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
     }
 
     override fun onBack() {
-        performGlobalAction(GLOBAL_ACTION_BACK)
+        try {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        } catch (e: Exception) {
+            Log.e(TAG, "onBack failed: ${e.message}")
+        }
     }
 
     override fun onHome() {
-        performGlobalAction(GLOBAL_ACTION_HOME)
+        try {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+        } catch (e: Exception) {
+            Log.e(TAG, "onHome failed: ${e.message}")
+        }
     }
 
     override fun onRecentApps() {
-        performGlobalAction(GLOBAL_ACTION_RECENTS)
+        try {
+            performGlobalAction(GLOBAL_ACTION_RECENTS)
+        } catch (e: Exception) {
+            Log.e(TAG, "onRecentApps failed: ${e.message}")
+        }
     }
 
     override fun onSwitchToPreviousApp() {
@@ -88,25 +100,29 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val pkg = event.packageName?.toString()
-            if (!pkg.isNullOrBlank() &&
-                pkg != packageName &&
-                pkg != "com.android.systemui" &&
-                !pkg.contains("launcher") &&
-                !pkg.contains("inputmethod")
-            ) {
-                if (pkg != currentApp) {
-                    previousApp = currentApp
-                    currentApp = pkg
+        try {
+            if (event == null) return
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                val pkg = event.packageName?.toString()
+                if (!pkg.isNullOrBlank() &&
+                    pkg != packageName &&
+                    pkg != "com.android.systemui" &&
+                    !pkg.contains("launcher") &&
+                    !pkg.contains("inputmethod")
+                ) {
+                    if (pkg != currentApp) {
+                        previousApp = currentApp
+                        currentApp = pkg
+                    }
                 }
             }
-        }
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-        ) {
-            checkKeyboardVisibility()
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            ) {
+                checkKeyboardVisibility()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onAccessibilityEvent error: ${e.message}")
         }
     }
 
@@ -114,10 +130,12 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
         try {
             val windowList = windows
             var imeVisible = false
-            for (window in windowList) {
-                if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
-                    imeVisible = true
-                    break
+            if (windowList != null) {
+                for (window in windowList) {
+                    if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                        imeVisible = true
+                        break
+                    }
                 }
             }
             if (::edgeViewManager.isInitialized) {
@@ -134,24 +152,37 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (::edgeViewManager.isInitialized) {
-            edgeViewManager.applySettings(settingsProvider(), settingsProvider)
+        try {
+            if (::edgeViewManager.isInitialized) {
+                edgeViewManager.applySettings(settingsProvider(), settingsProvider)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onConfigurationChanged error: ${e.message}")
         }
     }
 
     fun reloadSettings() {
-        if (::edgeViewManager.isInitialized) {
-            edgeViewManager.applySettings(settingsProvider(), settingsProvider)
+        try {
+            if (::edgeViewManager.isInitialized) {
+                edgeViewManager.applySettings(settingsProvider(), settingsProvider)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "reloadSettings error: ${e.message}")
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::edgeViewManager.isInitialized) {
-            edgeViewManager.removeViews()
+        try {
+            if (::edgeViewManager.isInitialized) {
+                edgeViewManager.removeViews()
+            }
+            serviceScope.cancel()
+        } catch (e: Exception) {
+            Log.e(TAG, "onDestroy error: ${e.message}")
+        } finally {
+            instanceRef = null
+            Log.d(TAG, "EdgeGestureAccessibilityService destroyed")
         }
-        serviceScope.cancel()
-        instanceRef = null
-        Log.d(TAG, "EdgeGestureAccessibilityService destroyed")
     }
 }

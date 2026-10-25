@@ -607,10 +607,12 @@ fun SecureSettingsCard(
     isStockBackDisabled: Boolean,
     isMiuiGestureLineHidden: Boolean,
     enableOverscanNavBar: Boolean,
+    overscanHeightPx: Int,
     onToggleMiuiNavbar: (Boolean) -> Unit,
     onToggleStockBack: (Boolean) -> Unit,
     onToggleMiuiGestureLine: (Boolean) -> Unit,
-    onToggleOverscanNavBar: (Boolean) -> Unit
+    onToggleOverscanNavBar: (Boolean) -> Unit,
+    onOverscanHeightChange: (Float) -> Unit
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -729,7 +731,7 @@ fun SecureSettingsCard(
             // Switch 4: Đẩy ứng dụng lên (Thanh điều hướng đen phần cứng)
             SwitchRow(
                 title = "Thanh điều hướng đáy (Đẩy ứng dụng lên)",
-                subtitle = "Ép co màn hình 50px đẩy Facebook & bàn phím lên, đặt thanh Pill lọt vào khoảng đáy",
+                subtitle = "Ép co màn hình để đẩy Facebook & bàn phím lên, đặt thanh Pill lọt vào khoảng đáy",
                 checked = enableOverscanNavBar,
                 onCheckedChange = { checked ->
                     if (hasPermission) {
@@ -739,6 +741,16 @@ fun SecureSettingsCard(
                     }
                 }
             )
+
+            if (enableOverscanNavBar) {
+                Spacer(modifier = Modifier.height(4.dp))
+                SliderRow(
+                    label = "Độ cao thanh đáy đẩy lên: ${overscanHeightPx} px",
+                    value = overscanHeightPx.toFloat(),
+                    valueRange = 24f..90f,
+                    onValueChange = onOverscanHeightChange
+                )
+            }
         }
     }
 }

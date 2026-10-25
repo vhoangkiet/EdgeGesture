@@ -85,8 +85,8 @@ class PillBarView(context: Context) : View(context) {
     fun onSwipeProgress(dy: Float, progress: Float, isHoldingRecents: Boolean) {
         bounceAnimator?.cancel()
 
-        // Độ dịch chuyển lên trên (có hãm đà quán tính)
-        currentTranslationY = - (dy * 0.42f).coerceAtMost(52f * density)
+        // Độ dịch chuyển lên cao theo ngón tay (bám sát ngón tay kéo từ bottom lên cao, tối đa 180dp)
+        currentTranslationY = - (dy * 0.85f).coerceAtMost(180f * density)
 
         if (isHoldingRecents) {
             isCommittedRecents = true

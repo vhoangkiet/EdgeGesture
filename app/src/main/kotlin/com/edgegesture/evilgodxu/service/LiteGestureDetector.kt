@@ -38,10 +38,10 @@ class LiteGestureDetector(
     private val handler = Handler(Looper.getMainLooper())
     private val density = context.resources.displayMetrics.density
 
-    // Ngưỡng phát hiện cử chỉ (rút ngắn để vuốt cực nhạy và dứt khoát)
-    private val sideSwipeThresholdPx = 18f * density  // 18dp
-    private val bottomSwipeThresholdPx = 16f * density // 16dp
-    private val recentsHoldDelayMs = 180L
+    // Ngưỡng phát hiện cử chỉ (rút ngắn khoảng cách để vuốt nhẹ là ăn ngay)
+    private val sideSwipeThresholdPx = 15f * density   // 15dp (nhạy hơn)
+    private val bottomSwipeThresholdPx = 12f * density // 12dp (rút ngắn khoảng cách vuốt)
+    private val recentsHoldDelayMs = 210L
 
     fun triggerVibration(settings: LiteSettings, durationMs: Long = 25) {
         if (!settings.vibrateOnTrigger) return
@@ -136,21 +136,21 @@ class LiteGestureDetector(
                     actionTriggered = false
                     isHolding = false
 
-                    // Timer kích hoạt Recent Apps khi vuốt lên và giữ lại một nhịp (~230ms)
+                    // Timer kích hoạt Recent Apps khi vuốt lên và giữ lại một nhịp (~210ms)
                     recentsRunnable?.let { handler.removeCallbacks(it) }
                     val runnable = Runnable {
                         val currentDy = (startY - (lastY.takeIf { it > 0 } ?: startY))
-                        // Chỉ kích hoạt Recent Apps nếu ngón tay đã kéo lên một khoảng
-                        if (!actionTriggered) {
+                        // Khi ngón tay đã kéo lên một đoạn nhỏ (> 8dp) và dừng giữ tay:
+                        if (!actionTriggered && currentDy > 8f * density) {
                             actionTriggered = true
                             isHolding = true
                             triggerVibration(settings, 30)
-                            feedbackListener?.onBottomSwipeProgress(bottomSwipeThresholdPx * 1.5f, 1f, isHoldingRecents = true)
+                            feedbackListener?.onBottomSwipeProgress(currentDy, 1f, isHoldingRecents = true)
                             callback.onRecentApps()
                         }
                     }
                     recentsRunnable = runnable
-                    handler.postDelayed(runnable, 230L)
+                    handler.postDelayed(runnable, recentsHoldDelayMs)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -173,8 +173,8 @@ class LiteGestureDetector(
                         val dy = startY - event.rawY
                         val dx = abs(event.rawX - startX)
 
-                        // Vuốt lên và thả tay (không giữ) -> Về Home
-                        if (!actionTriggered && dy > bottomSwipeThresholdPx && dy > dx * 0.7f) {
+                        // Vuốt lên và thả tay (không giữ) -> Về Home (ngưỡng 12dp cực kỳ nhạy)
+                        if (!actionTriggered && dy > bottomSwipeThresholdPx && dy > dx * 0.6f) {
                             triggerVibration(settings, 20)
                             callback.onHome()
                         }

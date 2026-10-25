@@ -14,7 +14,8 @@ import com.edgegesture.evilgodxu.data.LiteSettings
 class AccessibilityEdgeViewManager(
     private val context: Context,
     private val gestureDetector: LiteGestureDetector
-) {
+) : LiteGestureDetector.GestureFeedbackListener {
+
     companion object {
         private const val TAG = "EdgeViewManager"
     }
@@ -25,12 +26,18 @@ class AccessibilityEdgeViewManager(
     private var rightView: View? = null
     private var bottomView: View? = null
     private var pillView: PillBarView? = null
+    private var backIndicatorView: BackGestureIndicatorView? = null
 
     private var screenWidth: Int = 1080
     private var screenHeight: Int = 2340
     private var density: Float = 1f
 
     private var isKeyboardVisible: Boolean = false
+    private var isAnimationEnabled: Boolean = true
+
+    init {
+        gestureDetector.feedbackListener = this
+    }
 
     fun updateScreenDimensions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -54,8 +61,26 @@ class AccessibilityEdgeViewManager(
         removeViews()
 
         if (!settings.isServiceEnabled) return
+        this.isAnimationEnabled = settings.showSwipeAnimation
 
-        // 1. Tạo và gắn cạnh trái (Back)
+        // 1. Tạo và gắn màn hình vẽ hiệu ứng vuốt Back (mũi tên / giọt nước)
+        if (settings.showSwipeAnimation) {
+            val indicator = BackGestureIndicatorView(context)
+            val indicatorParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            backIndicatorView = indicator
+            safeAddView(indicator, indicatorParams)
+        }
+
+        // 2. Tạo và gắn cạnh trái (Back)
         if (settings.isLeftEnabled) {
             val leftWidthPx = (settings.leftWidthDp * density).toInt()
             val leftHeightPx = (screenHeight * settings.leftHeightPercent / 100)
@@ -76,7 +101,7 @@ class AccessibilityEdgeViewManager(
             safeAddView(view, params)
         }
 
-        // 2. Tạo và gắn cạnh phải (Back)
+        // 3. Tạo và gắn cạnh phải (Back)
         if (settings.isRightEnabled) {
             val rightWidthPx = (settings.rightWidthDp * density).toInt()
             val rightHeightPx = (screenHeight * settings.rightHeightPercent / 100)
@@ -97,7 +122,7 @@ class AccessibilityEdgeViewManager(
             safeAddView(view, params)
         }
 
-        // 3. Tạo và gắn cạnh dưới (Home & Recent Apps)
+        // 4. Tạo và gắn cạnh dưới (Home & Recent Apps)
         if (settings.isBottomEnabled && (!isKeyboardVisible || !settings.avoidKeyboard)) {
             val bottomWidthPx = (screenWidth * settings.bottomWidthPercent / 100)
             val bottomHeightPx = (settings.bottomHeightDp * density).toInt()
@@ -117,18 +142,19 @@ class AccessibilityEdgeViewManager(
             safeAddView(view, params)
         }
 
-        // 4. Tạo và gắn thanh Pixel Navigation Pill
+        // 5. Tạo và gắn thanh Pixel Navigation Pill
         if (settings.showPill && (!isKeyboardVisible || !settings.avoidKeyboard)) {
             val pillWidthPx = settings.pillWidthDp * density
             val pillHeightPx = settings.pillHeightDp * density
-            val pillMarginBottomPx = (settings.pillBottomMarginDp * density).toInt()
-            val containerHeightPx = (pillHeightPx + pillMarginBottomPx * 2).toInt()
+            val pillMarginBottomPx = settings.pillBottomMarginDp * density
+            // Chiều cao container đủ lớn để Pill có thể dịch chuyển lên mượt mà mà không bị cắt khung hình
+            val containerHeightPx = (pillHeightPx + pillMarginBottomPx + 60f * density).toInt()
 
             val pill = PillBarView(context).apply {
-                updateDimensions(pillWidthPx, pillHeightPx)
+                updateDimensions(pillWidthPx, pillHeightPx, pillMarginBottomPx)
             }
             val pillParams = createPillLayoutParams(
-                width = (pillWidthPx * 1.4f).toInt(),
+                width = (pillWidthPx * 1.5f).toInt(),
                 height = containerHeightPx,
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
                 x = 0,
@@ -139,12 +165,42 @@ class AccessibilityEdgeViewManager(
         }
     }
 
+    // Callbacks từ GestureFeedbackListener
+    override fun onSideSwipeStart(isLeft: Boolean, startY: Float) {
+        if (isAnimationEnabled) {
+            backIndicatorView?.onSwipeStart(isLeft, startY)
+        }
+    }
+
+    override fun onSideSwipeProgress(isLeft: Boolean, progress: Float, readyToTrigger: Boolean) {
+        if (isAnimationEnabled) {
+            backIndicatorView?.onSwipeProgress(progress, readyToTrigger)
+        }
+    }
+
+    override fun onSideSwipeRelease(isLeft: Boolean, executed: Boolean) {
+        if (isAnimationEnabled) {
+            backIndicatorView?.onSwipeRelease(executed)
+        }
+    }
+
+    override fun onBottomSwipeProgress(dy: Float, progress: Float, isHoldingRecents: Boolean) {
+        if (isAnimationEnabled) {
+            pillView?.onSwipeProgress(dy, progress, isHoldingRecents)
+        }
+    }
+
+    override fun onBottomSwipeRelease() {
+        if (isAnimationEnabled) {
+            pillView?.onSwipeRelease()
+        }
+    }
+
     fun onKeyboardVisibilityChanged(visible: Boolean, settingsProvider: () -> LiteSettings) {
         if (isKeyboardVisible == visible) return
         isKeyboardVisible = visible
         val settings = settingsProvider()
         if (settings.avoidKeyboard) {
-            // Khi bàn phím (Laban Key) mở, tạm thời ẩn cạnh dưới & pill để tránh chạm nhầm phím Space
             if (visible) {
                 bottomView?.let { safeRemoveView(it); bottomView = null }
                 pillView?.let { safeRemoveView(it); pillView = null }
@@ -192,7 +248,7 @@ class AccessibilityEdgeViewManager(
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, // Touches pass through pill
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, // Cảm ứng chạm xuyên qua Pill
             PixelFormat.TRANSLUCENT
         ).apply {
             this.gravity = gravity
@@ -206,6 +262,7 @@ class AccessibilityEdgeViewManager(
         rightView?.let { safeRemoveView(it); rightView = null }
         bottomView?.let { safeRemoveView(it); bottomView = null }
         pillView?.let { safeRemoveView(it); pillView = null }
+        backIndicatorView?.let { safeRemoveView(it); backIndicatorView = null }
     }
 
     private fun safeAddView(view: View, params: WindowManager.LayoutParams) {

@@ -24,6 +24,17 @@ class LiteGestureDetector(
         fun onRecentApps()
     }
 
+    interface GestureFeedbackListener {
+        fun onSideSwipeStart(isLeft: Boolean, startY: Float)
+        fun onSideSwipeProgress(isLeft: Boolean, progress: Float, readyToTrigger: Boolean)
+        fun onSideSwipeRelease(isLeft: Boolean, executed: Boolean)
+
+        fun onBottomSwipeProgress(dy: Float, progress: Float, isHoldingRecents: Boolean)
+        fun onBottomSwipeRelease()
+    }
+
+    var feedbackListener: GestureFeedbackListener? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private val density = context.resources.displayMetrics.density
 
@@ -67,23 +78,32 @@ class LiteGestureDetector(
                     startX = event.rawX
                     startY = event.rawY
                     triggered = false
+                    feedbackListener?.onSideSwipeStart(isLeft, startY)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!triggered) {
-                        val dx = if (isLeft) (event.rawX - startX) else (startX - event.rawX)
-                        val dy = abs(event.rawY - startY)
+                    val dx = if (isLeft) (event.rawX - startX) else (startX - event.rawX)
+                    val dy = abs(event.rawY - startY)
+                    val progress = (dx / swipeThresholdPx).coerceAtLeast(0f)
+                    val ready = (dx > swipeThresholdPx && dx > dy * 0.8f)
 
-                        // Vuốt vào phía trong màn hình vượt ngưỡng và góc vuốt hợp lý
-                        if (dx > swipeThresholdPx && dx > dy * 0.8f) {
-                            triggered = true
-                            triggerVibration(settings, 20)
-                            callback.onBack()
-                        }
+                    if (ready && !triggered) {
+                        triggered = true
+                        triggerVibration(settings, 18) // Rung nhẹ phản hồi khi chạm ngưỡng
+                    } else if (!ready && triggered) {
+                        triggered = false
                     }
+
+                    feedbackListener?.onSideSwipeProgress(isLeft, progress, ready)
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (event.actionMasked == MotionEvent.ACTION_UP && triggered) {
+                        callback.onBack()
+                        feedbackListener?.onSideSwipeRelease(isLeft, executed = true)
+                    } else {
+                        feedbackListener?.onSideSwipeRelease(isLeft, executed = false)
+                    }
                     triggered = false
                     true
                 }
@@ -114,55 +134,53 @@ class LiteGestureDetector(
                     actionTriggered = false
                     isHolding = false
 
-                    // Lên lịch kiểm tra vuốt lên và giữ (Recent Apps)
-                    recentsRunnable = Runnable {
-                        if (!actionTriggered && isHolding) {
+                    recentsRunnable?.let { handler.removeCallbacks(it) }
+                    val runnable = Runnable {
+                        if (!actionTriggered) {
+                            isHolding = true
                             actionTriggered = true
-                            triggerVibration(settings, 35)
+                            triggerVibration(settings, 30)
+                            feedbackListener?.onBottomSwipeProgress(swipeThresholdPx, 1f, isHoldingRecents = true)
                             callback.onRecentApps()
                         }
                     }
+                    recentsRunnable = runnable
+                    handler.postDelayed(runnable, longPressRecentsDelayMs)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dy = startY - event.rawY // Vuốt lên -> dy > 0
+                    val dy = (startY - event.rawY).coerceAtLeast(0f)
                     val dx = abs(event.rawX - startX)
+                    val progress = (dy / swipeThresholdPx).coerceAtLeast(0f)
 
-                    if (!actionTriggered) {
-                        if (dy > swipeThresholdPx && dy > dx * 0.7f) {
-                            if (!isHolding) {
-                                isHolding = true
-                                recentsRunnable?.let { handler.postDelayed(it, longPressRecentsDelayMs) }
-                            }
-                        } else {
-                            if (isHolding) {
-                                isHolding = false
-                                recentsRunnable?.let { handler.removeCallbacks(it) }
-                            }
+                    feedbackListener?.onBottomSwipeProgress(dy, progress, isHolding)
+
+                    // Nếu ngón tay vuốt dứt khoát lên trên -> hủy đếm Recents để kích hoạt Home khi nhả tay
+                    if (dy > swipeThresholdPx * 1.4f || dx > swipeThresholdPx) {
+                        recentsRunnable?.let {
+                            handler.removeCallbacks(it)
+                            recentsRunnable = null
                         }
                     }
                     true
                 }
-                MotionEvent.ACTION_UP -> {
-                    recentsRunnable?.let { handler.removeCallbacks(it) }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    recentsRunnable?.let {
+                        handler.removeCallbacks(it)
+                        recentsRunnable = null
+                    }
+                    feedbackListener?.onBottomSwipeRelease()
 
-                    val dy = startY - event.rawY
-                    val dx = abs(event.rawX - startX)
+                    if (event.actionMasked == MotionEvent.ACTION_UP) {
+                        val dy = startY - event.rawY
+                        val dx = abs(event.rawX - startX)
 
-                    if (!actionTriggered) {
-                        if (dy > swipeThresholdPx && dy > dx * 0.7f) {
-                            // Vuốt lên thả tay nhanh -> Home
-                            actionTriggered = true
-                            triggerVibration(settings, 25)
+                        // Nếu chưa kích hoạt Recents và vuốt lên vượt ngưỡng -> Kích hoạt Home
+                        if (!actionTriggered && dy > swipeThresholdPx && dy > dx * 0.8f) {
+                            triggerVibration(settings, 20)
                             callback.onHome()
                         }
                     }
-                    actionTriggered = false
-                    isHolding = false
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    recentsRunnable?.let { handler.removeCallbacks(it) }
                     actionTriggered = false
                     isHolding = false
                     true

@@ -335,6 +335,15 @@ fun MainScreen(
             item {
                 SectionCard(title = "Tương thích & Phản hồi") {
                     SwitchRow(
+                        title = "Hiệu ứng vuốt (Animation)",
+                        subtitle = "Hiển thị mũi tên giọt nước cạnh viền & độ nảy đàn hồi thanh Pill",
+                        checked = settings.showSwipeAnimation,
+                        onCheckedChange = { checked ->
+                            LitePreferences.update { it.copy(showSwipeAnimation = checked) }
+                        }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    SwitchRow(
                         title = "Tránh xung đột Laban Key",
                         subtitle = "Tự động tắt vùng vuốt đáy khi bàn phím mở để gõ phím Space mượt mà",
                         checked = settings.avoidKeyboard,

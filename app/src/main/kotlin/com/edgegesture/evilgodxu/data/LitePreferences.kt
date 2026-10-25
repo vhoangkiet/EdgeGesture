@@ -30,7 +30,9 @@ data class LiteSettings(
     // Phản hồi rung
     val vibrateOnTrigger: Boolean = true,
     // Tự động tránh bàn phím (tránh cản trở Laban Key)
-    val avoidKeyboard: Boolean = true
+    val avoidKeyboard: Boolean = true,
+    // Hiệu ứng vuốt (mũi tên giọt nước & đàn hồi thanh Pill)
+    val showSwipeAnimation: Boolean = true
 )
 
 object LitePreferences {
@@ -78,7 +80,8 @@ object LitePreferences {
             pillHeightDp = prefs.getInt("pillHeightDp", 4),
             pillBottomMarginDp = prefs.getInt("pillBottomMarginDp", 6),
             vibrateOnTrigger = prefs.getBoolean("vibrateOnTrigger", true),
-            avoidKeyboard = prefs.getBoolean("avoidKeyboard", true)
+            avoidKeyboard = prefs.getBoolean("avoidKeyboard", true),
+            showSwipeAnimation = prefs.getBoolean("showSwipeAnimation", true)
         )
     }
 
@@ -102,6 +105,7 @@ object LitePreferences {
             .putInt("pillBottomMarginDp", s.pillBottomMarginDp)
             .putBoolean("vibrateOnTrigger", s.vibrateOnTrigger)
             .putBoolean("avoidKeyboard", s.avoidKeyboard)
+            .putBoolean("showSwipeAnimation", s.showSwipeAnimation)
             .apply()
     }
 }

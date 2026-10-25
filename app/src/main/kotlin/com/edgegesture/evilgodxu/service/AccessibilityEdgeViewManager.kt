@@ -184,9 +184,9 @@ class AccessibilityEdgeViewManager(
         }
     }
 
-    override fun onBottomSwipeProgress(dy: Float, progress: Float, isHoldingRecents: Boolean) {
+    override fun onBottomSwipeProgress(dx: Float, dy: Float, progress: Float, isHoldingRecents: Boolean) {
         if (isAnimationEnabled) {
-            pillView?.onSwipeProgress(dy, progress, isHoldingRecents)
+            pillView?.onSwipeProgress(dx, dy, progress, isHoldingRecents)
         }
     }
 

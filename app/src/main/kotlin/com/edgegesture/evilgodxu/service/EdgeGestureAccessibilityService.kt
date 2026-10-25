@@ -1,6 +1,7 @@
 package com.edgegesture.evilgodxu.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.content.res.Configuration
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -31,6 +32,9 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var gestureDetector: LiteGestureDetector
     private lateinit var edgeViewManager: AccessibilityEdgeViewManager
+
+    private var currentApp: String? = null
+    private var previousApp: String? = null
 
     private val settingsProvider: () -> LiteSettings = {
         LitePreferences.getSettings()
@@ -66,8 +70,39 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
         performGlobalAction(GLOBAL_ACTION_RECENTS)
     }
 
+    override fun onSwitchToPreviousApp() {
+        val target = previousApp ?: return
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(target)
+            if (launchIntent != null) {
+                launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                startActivity(launchIntent)
+                // Đảo ngược để lần vuốt tiếp theo chuyển qua lại giữa 2 ứng dụng
+                val temp = currentApp
+                currentApp = target
+                previousApp = temp
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Switch to previous app failed: ${e.message}")
+        }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val pkg = event.packageName?.toString()
+            if (!pkg.isNullOrBlank() &&
+                pkg != packageName &&
+                pkg != "com.android.systemui" &&
+                !pkg.contains("launcher") &&
+                !pkg.contains("inputmethod")
+            ) {
+                if (pkg != currentApp) {
+                    previousApp = currentApp
+                    currentApp = pkg
+                }
+            }
+        }
         if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) {

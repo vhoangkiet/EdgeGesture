@@ -201,7 +201,8 @@ class BackGestureIndicatorView(context: Context) : View(context) {
         } else {
             viewWidth - (currentExtensionPx - r * 0.35f).coerceAtLeast(r)
         }
-        val centerY = touchY
+        // Áp dụng mFingerOffset chuẩn AOSP: nâng nhẹ 8dp để ngón cái không che khuất mũi tên
+        val centerY = touchY - 8f * density
 
         // 1. Vẽ cuống dẻo kết nối với mép viền (Fluid Stem)
         bubblePath.reset()

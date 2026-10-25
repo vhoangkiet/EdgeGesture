@@ -24,9 +24,9 @@ data class LiteSettings(
     val bottomHeightDp: Int = 24,         // 12 .. 48 dp
     // Thanh Pill phong cách Pixel
     val showPill: Boolean = true,
-    val pillWidthDp: Int = 72,            // 40 .. 120 dp
-    val pillHeightDp: Int = 4,            // 3 .. 8 dp
-    val pillBottomMarginDp: Int = 6,      // 2 .. 16 dp
+    val pillWidthDp: Int = 108,           // 40 .. 160 dp (chuẩn Pixel 108dp)
+    val pillHeightDp: Int = 4,            // 3 .. 8 dp (chuẩn Pixel 4dp)
+    val pillBottomMarginDp: Int = 8,      // 2 .. 16 dp (chuẩn Pixel 8dp)
     // Phản hồi rung
     val vibrateOnTrigger: Boolean = true,
     // Tự động tránh bàn phím (tránh cản trở Laban Key)
@@ -76,9 +76,9 @@ object LitePreferences {
             bottomWidthPercent = prefs.getInt("bottomWidthPercent", 70),
             bottomHeightDp = prefs.getInt("bottomHeightDp", 24),
             showPill = prefs.getBoolean("showPill", true),
-            pillWidthDp = prefs.getInt("pillWidthDp", 72),
+            pillWidthDp = prefs.getInt("pillWidthDp", 108),
             pillHeightDp = prefs.getInt("pillHeightDp", 4),
-            pillBottomMarginDp = prefs.getInt("pillBottomMarginDp", 6),
+            pillBottomMarginDp = prefs.getInt("pillBottomMarginDp", 8),
             vibrateOnTrigger = prefs.getBoolean("vibrateOnTrigger", true),
             avoidKeyboard = prefs.getBoolean("avoidKeyboard", true),
             showSwipeAnimation = prefs.getBoolean("showSwipeAnimation", true)

@@ -306,7 +306,7 @@ fun MainScreen(
                         SliderRow(
                             label = "Chiều dài Pill: ${settings.pillWidthDp} dp",
                             value = settings.pillWidthDp.toFloat(),
-                            valueRange = 40f..120f,
+                            valueRange = 40f..160f,
                             onValueChange = {
                                 LitePreferences.update { s -> s.copy(pillWidthDp = it.toInt()) }
                             }

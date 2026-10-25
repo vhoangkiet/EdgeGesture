@@ -26,7 +26,7 @@ class LiteGestureDetector(
 
     interface GestureFeedbackListener {
         fun onSideSwipeStart(isLeft: Boolean, startY: Float)
-        fun onSideSwipeProgress(isLeft: Boolean, progress: Float, readyToTrigger: Boolean)
+        fun onSideSwipeProgress(isLeft: Boolean, progress: Float, readyToTrigger: Boolean, currentY: Float)
         fun onSideSwipeRelease(isLeft: Boolean, executed: Boolean)
 
         fun onBottomSwipeProgress(dy: Float, progress: Float, isHoldingRecents: Boolean)
@@ -38,9 +38,10 @@ class LiteGestureDetector(
     private val handler = Handler(Looper.getMainLooper())
     private val density = context.resources.displayMetrics.density
 
-    // Ngưỡng phát hiện cử chỉ (dp -> px)
-    private val swipeThresholdPx = 36f * density
-    private val longPressRecentsDelayMs = 280L
+    // Ngưỡng phát hiện cử chỉ (rút ngắn để vuốt cực nhạy và dứt khoát)
+    private val sideSwipeThresholdPx = 18f * density  // 18dp
+    private val bottomSwipeThresholdPx = 16f * density // 16dp
+    private val recentsHoldDelayMs = 180L
 
     fun triggerVibration(settings: LiteSettings, durationMs: Long = 25) {
         if (!settings.vibrateOnTrigger) return
@@ -84,17 +85,17 @@ class LiteGestureDetector(
                 MotionEvent.ACTION_MOVE -> {
                     val dx = if (isLeft) (event.rawX - startX) else (startX - event.rawX)
                     val dy = abs(event.rawY - startY)
-                    val progress = (dx / swipeThresholdPx).coerceAtLeast(0f)
-                    val ready = (dx > swipeThresholdPx && dx > dy * 0.8f)
+                    val progress = (dx / sideSwipeThresholdPx).coerceAtLeast(0f)
+                    val ready = (dx > sideSwipeThresholdPx && dx > dy * 0.7f)
 
                     if (ready && !triggered) {
                         triggered = true
-                        triggerVibration(settings, 18) // Rung nhẹ phản hồi khi chạm ngưỡng
+                        triggerVibration(settings, 18) // Rung phản hồi nhẹ khi chạm ngưỡng
                     } else if (!ready && triggered) {
                         triggered = false
                     }
 
-                    feedbackListener?.onSideSwipeProgress(isLeft, progress, ready)
+                    feedbackListener?.onSideSwipeProgress(isLeft, progress, ready, event.rawY)
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -134,33 +135,41 @@ class LiteGestureDetector(
                     actionTriggered = false
                     isHolding = false
 
+                    // Timer kích hoạt Recent Apps nếu giữ tay nhẹ tại chỗ
                     recentsRunnable?.let { handler.removeCallbacks(it) }
                     val runnable = Runnable {
                         if (!actionTriggered) {
-                            isHolding = true
                             actionTriggered = true
+                            isHolding = true
                             triggerVibration(settings, 30)
-                            feedbackListener?.onBottomSwipeProgress(swipeThresholdPx, 1f, isHoldingRecents = true)
+                            feedbackListener?.onBottomSwipeProgress(bottomSwipeThresholdPx * 1.5f, 1f, isHoldingRecents = true)
                             callback.onRecentApps()
                         }
                     }
                     recentsRunnable = runnable
-                    handler.postDelayed(runnable, longPressRecentsDelayMs)
+                    handler.postDelayed(runnable, recentsHoldDelayMs)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = (startY - event.rawY).coerceAtLeast(0f)
                     val dx = abs(event.rawX - startX)
-                    val progress = (dy / swipeThresholdPx).coerceAtLeast(0f)
+                    val progress = (dy / bottomSwipeThresholdPx).coerceAtLeast(0f)
 
                     feedbackListener?.onBottomSwipeProgress(dy, progress, isHolding)
 
-                    // Nếu ngón tay vuốt dứt khoát lên trên -> hủy đếm Recents để kích hoạt Home khi nhả tay
-                    if (dy > swipeThresholdPx * 1.4f || dx > swipeThresholdPx) {
+                    // KHI VUỐT LÊN TRÊN ~28dp (dy > threshold * 1.75):
+                    // Kích hoạt Recent Apps NGAY LẬP TỨC (không cần chờ hết timer giữ tay)
+                    val recentsTriggerThresholdPx = bottomSwipeThresholdPx * 1.75f // ~28dp
+                    if (!actionTriggered && dy >= recentsTriggerThresholdPx && dy > dx * 0.7f) {
+                        actionTriggered = true
+                        isHolding = true
                         recentsRunnable?.let {
                             handler.removeCallbacks(it)
                             recentsRunnable = null
                         }
+                        triggerVibration(settings, 30)
+                        feedbackListener?.onBottomSwipeProgress(dy, progress, isHoldingRecents = true)
+                        callback.onRecentApps()
                     }
                     true
                 }
@@ -175,8 +184,8 @@ class LiteGestureDetector(
                         val dy = startY - event.rawY
                         val dx = abs(event.rawX - startX)
 
-                        // Nếu chưa kích hoạt Recents và vuốt lên vượt ngưỡng -> Kích hoạt Home
-                        if (!actionTriggered && dy > swipeThresholdPx && dy > dx * 0.8f) {
+                        // Nếu chưa kích hoạt Recent Apps và người dùng vuốt ngắn rồi nhả nhanh -> Về Home
+                        if (!actionTriggered && dy > bottomSwipeThresholdPx && dy > dx * 0.7f) {
                             triggerVibration(settings, 20)
                             callback.onHome()
                         }

@@ -172,9 +172,9 @@ class AccessibilityEdgeViewManager(
         }
     }
 
-    override fun onSideSwipeProgress(isLeft: Boolean, progress: Float, readyToTrigger: Boolean) {
+    override fun onSideSwipeProgress(isLeft: Boolean, progress: Float, readyToTrigger: Boolean, currentY: Float) {
         if (isAnimationEnabled) {
-            backIndicatorView?.onSwipeProgress(progress, readyToTrigger)
+            backIndicatorView?.onSwipeProgress(progress, readyToTrigger, currentY)
         }
     }
 

@@ -117,6 +117,7 @@ class LiteGestureDetector(
     fun attachBottomEdge(view: View, settingsProvider: () -> LiteSettings) {
         var startX = 0f
         var startY = 0f
+        var lastY = 0f
         var actionTriggered = false
         var isHolding = false
 
@@ -135,9 +136,11 @@ class LiteGestureDetector(
                     actionTriggered = false
                     isHolding = false
 
-                    // Timer kích hoạt Recent Apps nếu giữ tay nhẹ tại chỗ
+                    // Timer kích hoạt Recent Apps khi vuốt lên và giữ lại một nhịp (~230ms)
                     recentsRunnable?.let { handler.removeCallbacks(it) }
                     val runnable = Runnable {
+                        val currentDy = (startY - (lastY.takeIf { it > 0 } ?: startY))
+                        // Chỉ kích hoạt Recent Apps nếu ngón tay đã kéo lên một khoảng
                         if (!actionTriggered) {
                             actionTriggered = true
                             isHolding = true
@@ -147,7 +150,7 @@ class LiteGestureDetector(
                         }
                     }
                     recentsRunnable = runnable
-                    handler.postDelayed(runnable, recentsHoldDelayMs)
+                    handler.postDelayed(runnable, 230L)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -155,22 +158,8 @@ class LiteGestureDetector(
                     val dx = abs(event.rawX - startX)
                     val progress = (dy / bottomSwipeThresholdPx).coerceAtLeast(0f)
 
+                    lastY = event.rawY
                     feedbackListener?.onBottomSwipeProgress(dy, progress, isHolding)
-
-                    // KHI VUỐT LÊN TRÊN ~28dp (dy > threshold * 1.75):
-                    // Kích hoạt Recent Apps NGAY LẬP TỨC (không cần chờ hết timer giữ tay)
-                    val recentsTriggerThresholdPx = bottomSwipeThresholdPx * 1.75f // ~28dp
-                    if (!actionTriggered && dy >= recentsTriggerThresholdPx && dy > dx * 0.7f) {
-                        actionTriggered = true
-                        isHolding = true
-                        recentsRunnable?.let {
-                            handler.removeCallbacks(it)
-                            recentsRunnable = null
-                        }
-                        triggerVibration(settings, 30)
-                        feedbackListener?.onBottomSwipeProgress(dy, progress, isHoldingRecents = true)
-                        callback.onRecentApps()
-                    }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -184,7 +173,7 @@ class LiteGestureDetector(
                         val dy = startY - event.rawY
                         val dx = abs(event.rawX - startX)
 
-                        // Nếu chưa kích hoạt Recent Apps và người dùng vuốt ngắn rồi nhả nhanh -> Về Home
+                        // Vuốt lên và thả tay (không giữ) -> Về Home
                         if (!actionTriggered && dy > bottomSwipeThresholdPx && dy > dx * 0.7f) {
                             triggerVibration(settings, 20)
                             callback.onHome()
@@ -192,6 +181,7 @@ class LiteGestureDetector(
                     }
                     actionTriggered = false
                     isHolding = false
+                    lastY = 0f
                     true
                 }
                 else -> false

@@ -147,14 +147,14 @@ class AccessibilityEdgeViewManager(
             val pillWidthPx = settings.pillWidthDp * density
             val pillHeightPx = settings.pillHeightDp * density
             val pillMarginBottomPx = settings.pillBottomMarginDp * density
-            // Chiều cao container 240dp để Pill có thể thoải mái kéo từ bottom lên cao mà không bị cắt khung hình
-            val containerHeightPx = (pillHeightPx + pillMarginBottomPx + 220f * density).toInt()
+            // Chiều cao container nhỏ gọn sát đáy màn hình
+            val containerHeightPx = (pillHeightPx + pillMarginBottomPx + 16f * density).toInt()
 
             val pill = PillBarView(context).apply {
                 updateDimensions(pillWidthPx, pillHeightPx, pillMarginBottomPx)
             }
             val pillParams = createPillLayoutParams(
-                width = (pillWidthPx * 1.8f).toInt(),
+                width = (pillWidthPx * 1.3f).toInt(),
                 height = containerHeightPx,
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
                 x = 0,

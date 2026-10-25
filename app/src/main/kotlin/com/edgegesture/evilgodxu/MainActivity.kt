@@ -580,45 +580,40 @@ fun AdbOverscanGuideCard() {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Mẹo đẩy ứng dụng lên (ADB Android 10)",
+                        text = "Bộ lệnh ADB nâng cao (Android 10 & MIUI)",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Tạo khoảng đệm đáy phần cứng như thanh Navigation gốc",
+                        text = "Đẩy đáy màn hình, tắt cử chỉ Back gốc & ẩn thanh điều hướng MIUI",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // --- PHẦN 1: OVERSCAN ---
             Text(
-                text = "Android 10 hỗ trợ lệnh overscan để ép co đáy màn hình lên, giúp các ứng dụng và bàn phím tự nhấc lên trên thanh Pill:",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 18.sp
+                text = "📌 1. Đẩy ứng dụng & bàn phím lên (Overscan):",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Command 1: overscan 50
+            Spacer(modifier = Modifier.height(4.dp))
             AdbCommandBox(
-                label = "1. Lệnh đẩy đáy lên 50px (Khuyên dùng cho Redmi Note 8):",
+                label = "Đẩy đáy màn hình lên 50px (Khuyên dùng):",
                 command = "adb shell wm overscan 0,0,0,50",
                 onCopy = {
                     clipboardManager.setText(AnnotatedString("adb shell wm overscan 0,0,0,50"))
-                    Toast.makeText(context, "Đã sao chép lệnh ADB!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Đã sao chép lệnh Overscan!", Toast.LENGTH_SHORT).show()
                 }
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Command 2: reset
+            Spacer(modifier = Modifier.height(4.dp))
             AdbCommandBox(
-                label = "2. Lệnh khôi phục về ban đầu nếu muốn tắt:",
+                label = "Khôi phục màn hình về bình thường:",
                 command = "adb shell wm overscan reset",
                 onCopy = {
                     clipboardManager.setText(AnnotatedString("adb shell wm overscan reset"))
@@ -626,10 +621,75 @@ fun AdbOverscanGuideCard() {
                 }
             )
 
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // --- PHẦN 2: TẮT CỬ CHỈ GỐC ---
+            Text(
+                text = "📌 2. Tắt cử chỉ vuốt Back mặc định (Tránh xung đột 2 lần Back):",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            AdbCommandBox(
+                label = "Vô hiệu hóa cử chỉ Back mặc định mép Trái:",
+                command = "adb shell settings put secure back_gesture_inset_scale_left -1",
+                onCopy = {
+                    clipboardManager.setText(AnnotatedString("adb shell settings put secure back_gesture_inset_scale_left -1"))
+                    Toast.makeText(context, "Đã sao chép lệnh tắt Back mép trái!", Toast.LENGTH_SHORT).show()
+                }
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            AdbCommandBox(
+                label = "Vô hiệu hóa cử chỉ Back mặc định mép Phải:",
+                command = "adb shell settings put secure back_gesture_inset_scale_right -1",
+                onCopy = {
+                    clipboardManager.setText(AnnotatedString("adb shell settings put secure back_gesture_inset_scale_right -1"))
+                    Toast.makeText(context, "Đã sao chép lệnh tắt Back mép phải!", Toast.LENGTH_SHORT).show()
+                }
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            AdbCommandBox(
+                label = "Khôi phục lại cử chỉ Back mặc định hệ thống:",
+                command = "adb shell settings put secure back_gesture_inset_scale_left default && adb shell settings put secure back_gesture_inset_scale_right default",
+                onCopy = {
+                    clipboardManager.setText(AnnotatedString("adb shell settings put secure back_gesture_inset_scale_left default && adb shell settings put secure back_gesture_inset_scale_right default"))
+                    Toast.makeText(context, "Đã sao chép lệnh khôi phục Back mặc định!", Toast.LENGTH_SHORT).show()
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // --- PHẦN 3: ẨN NỀN / GẠCH MIUI ---
+            Text(
+                text = "📌 3. Tối ưu MIUI 12 (Ẩn 3 nút / ẩn gạch trắng gốc):",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            AdbCommandBox(
+                label = "Ẩn 3 nút điều hướng MIUI (khi dùng Launcher ngoài):",
+                command = "adb shell settings put global force_fsg_nav_bar 1",
+                onCopy = {
+                    clipboardManager.setText(AnnotatedString("adb shell settings put global force_fsg_nav_bar 1"))
+                    Toast.makeText(context, "Đã sao chép lệnh ẩn 3 nút MIUI!", Toast.LENGTH_SHORT).show()
+                }
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            AdbCommandBox(
+                label = "Ẩn thanh gạch trắng mặc định ở đáy của MIUI:",
+                command = "adb shell settings put global hide_gesture_line 1",
+                onCopy = {
+                    clipboardManager.setText(AnnotatedString("adb shell settings put global hide_gesture_line 1"))
+                    Toast.makeText(context, "Đã sao chép lệnh ẩn gạch trắng MIUI!", Toast.LENGTH_SHORT).show()
+                }
+            )
+
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "💡 Cách dùng: Vào Cài đặt máy > Tùy chọn nhà phát triển > Bật 'Gỡ lỗi USB', cắm cáp vào máy tính và chạy lệnh trên. Lệnh lưu vĩnh viễn cả khi khởi động lại.",
+                text = "💡 Lưu ý: Bật 'Gỡ lỗi USB' trong Tùy chọn nhà phát triển trước khi cắm máy tính. Các lệnh trên an toàn 100% và không làm mất dữ liệu máy.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
                 lineHeight = 16.sp

@@ -45,9 +45,30 @@ jobs:
         with:
           name: EdgeGesture-Lite-APK
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 14
 
-      - name: Create GitHub Release (On Tag Push)
+      # Tự động đính kèm (attach) file APK vào Release 'latest' mỗi khi push nhánh main
+      - name: Attach APK to Latest Pre-Release (On Main Push)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "EdgeGesture Lite (Latest Build)"
+          body: |
+            ### EdgeGesture Lite - Bản cập nhật mới nhất từ nhánh `main`
+            - **Commit:** ${{ github.sha }}
+            - **Nội dung:** ${{ github.event.head_commit.message }}
+            
+            *(Tải trực tiếp file `.apk` đính kèm bên dưới để cài đặt)*
+          files: app/build/outputs/apk/release/*.apk
+          prerelease: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Đính kèm file APK vào Official Release khi push tag v*
+      - name: Create Official GitHub Release (On Tag Push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:

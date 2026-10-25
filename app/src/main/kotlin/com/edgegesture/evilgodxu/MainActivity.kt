@@ -193,6 +193,7 @@ fun MainScreen(
                     isStockBackDisabled = isStockBackDisabled,
                     isMiuiGestureLineHidden = isMiuiGestureLineHidden,
                     enableOverscanNavBar = settings.enableOverscanNavBar,
+                    overscanHeightPx = settings.overscanHeightPx,
                     onToggleMiuiNavbar = { checked ->
                         SecureSettingsHelper.setMiuiNavbarHidden(context, checked)
                         isMiuiNavbarHidden = SecureSettingsHelper.isMiuiNavbarHidden(context)
@@ -207,8 +208,16 @@ fun MainScreen(
                     },
                     onToggleOverscanNavBar = { checked ->
                         LitePreferences.update { it.copy(enableOverscanNavBar = checked) }
-                        SecureSettingsHelper.setOverscan(if (checked) 50 else 0)
+                        SecureSettingsHelper.setOverscan(if (checked) settings.overscanHeightPx else 0)
                         EdgeGestureAccessibilityService.refresh()
+                    },
+                    onOverscanHeightChange = { newHeight ->
+                        val h = newHeight.toInt()
+                        LitePreferences.update { it.copy(overscanHeightPx = h) }
+                        if (settings.enableOverscanNavBar) {
+                            SecureSettingsHelper.setOverscan(h)
+                            EdgeGestureAccessibilityService.refresh()
+                        }
                     }
                 )
             }

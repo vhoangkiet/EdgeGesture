@@ -32,7 +32,10 @@ data class LiteSettings(
     // Tự động tránh bàn phím (tránh cản trở Laban Key)
     val avoidKeyboard: Boolean = true,
     // Hiệu ứng vuốt (mũi tên giọt nước & đàn hồi thanh Pill)
-    val showSwipeAnimation: Boolean = true
+    val showSwipeAnimation: Boolean = true,
+    // Chế độ thanh điều hướng đáy phần cứng (Overscan đẩy app lên)
+    val enableOverscanNavBar: Boolean = true,
+    val overscanHeightPx: Int = 50
 )
 
 object LitePreferences {
@@ -81,7 +84,9 @@ object LitePreferences {
             pillBottomMarginDp = prefs.getInt("pillBottomMarginDp", 8),
             vibrateOnTrigger = prefs.getBoolean("vibrateOnTrigger", true),
             avoidKeyboard = prefs.getBoolean("avoidKeyboard", true),
-            showSwipeAnimation = prefs.getBoolean("showSwipeAnimation", true)
+            showSwipeAnimation = prefs.getBoolean("showSwipeAnimation", true),
+            enableOverscanNavBar = prefs.getBoolean("enableOverscanNavBar", true),
+            overscanHeightPx = prefs.getInt("overscanHeightPx", 50)
         )
     }
 
@@ -106,6 +111,8 @@ object LitePreferences {
             .putBoolean("vibrateOnTrigger", s.vibrateOnTrigger)
             .putBoolean("avoidKeyboard", s.avoidKeyboard)
             .putBoolean("showSwipeAnimation", s.showSwipeAnimation)
+            .putBoolean("enableOverscanNavBar", s.enableOverscanNavBar)
+            .putInt("overscanHeightPx", s.overscanHeightPx)
             .apply()
     }
 }

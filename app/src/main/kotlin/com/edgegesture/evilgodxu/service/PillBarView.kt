@@ -53,11 +53,14 @@ class PillBarView(context: Context) : View(context) {
         setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
-    fun updateDimensions(widthPx: Float, heightPx: Float, marginBottomPx: Float) {
+    private var isCenteredVertically = false
+
+    fun updateDimensions(widthPx: Float, heightPx: Float, marginBottomPx: Float, isCenteredVertically: Boolean = false) {
         this.pillWidthPx = widthPx
         this.pillHeightPx = heightPx
         this.cornerRadiusPx = heightPx / 2f
         this.marginBottomPx = marginBottomPx
+        this.isCenteredVertically = isCenteredVertically
         updateRect()
         invalidate()
     }
@@ -70,7 +73,11 @@ class PillBarView(context: Context) : View(context) {
         val halfW = (pillWidthPx * currentScaleX) / 2f
         val halfH = (pillHeightPx * currentScaleY) / 2f
         val centerX = w / 2f + currentTranslationX
-        val centerY = h - marginBottomPx - (pillHeightPx / 2f) + currentTranslationY
+        val centerY = if (isCenteredVertically) {
+            h / 2f + currentTranslationY
+        } else {
+            h - marginBottomPx - (pillHeightPx / 2f) + currentTranslationY
+        }
 
         pillRect.set(
             centerX - halfW,

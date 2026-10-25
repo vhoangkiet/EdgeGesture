@@ -192,6 +192,7 @@ fun MainScreen(
                     isMiuiNavbarHidden = isMiuiNavbarHidden,
                     isStockBackDisabled = isStockBackDisabled,
                     isMiuiGestureLineHidden = isMiuiGestureLineHidden,
+                    enableOverscanNavBar = settings.enableOverscanNavBar,
                     onToggleMiuiNavbar = { checked ->
                         SecureSettingsHelper.setMiuiNavbarHidden(context, checked)
                         isMiuiNavbarHidden = SecureSettingsHelper.isMiuiNavbarHidden(context)
@@ -203,6 +204,11 @@ fun MainScreen(
                     onToggleMiuiGestureLine = { checked ->
                         SecureSettingsHelper.setMiuiGestureLineHidden(context, checked)
                         isMiuiGestureLineHidden = SecureSettingsHelper.isMiuiGestureLineHidden(context)
+                    },
+                    onToggleOverscanNavBar = { checked ->
+                        LitePreferences.update { it.copy(enableOverscanNavBar = checked) }
+                        SecureSettingsHelper.setOverscan(if (checked) 50 else 0)
+                        EdgeGestureAccessibilityService.refresh()
                     }
                 )
             }
@@ -591,9 +597,11 @@ fun SecureSettingsCard(
     isMiuiNavbarHidden: Boolean,
     isStockBackDisabled: Boolean,
     isMiuiGestureLineHidden: Boolean,
+    enableOverscanNavBar: Boolean,
     onToggleMiuiNavbar: (Boolean) -> Unit,
     onToggleStockBack: (Boolean) -> Unit,
-    onToggleMiuiGestureLine: (Boolean) -> Unit
+    onToggleMiuiGestureLine: (Boolean) -> Unit,
+    onToggleOverscanNavBar: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -701,6 +709,22 @@ fun SecureSettingsCard(
                 onCheckedChange = { checked ->
                     if (hasPermission) {
                         onToggleMiuiGestureLine(checked)
+                    } else {
+                        Toast.makeText(context, "Vui lòng chạy lệnh ADB trên máy tính để cấp quyền trước!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+            // Switch 4: Đẩy ứng dụng lên (Thanh điều hướng đen phần cứng)
+            SwitchRow(
+                title = "Thanh điều hướng đáy (Đẩy ứng dụng lên)",
+                subtitle = "Ép co màn hình 50px đẩy Facebook & bàn phím lên, đặt thanh Pill lọt vào khoảng đáy",
+                checked = enableOverscanNavBar,
+                onCheckedChange = { checked ->
+                    if (hasPermission) {
+                        onToggleOverscanNavBar(checked)
                     } else {
                         Toast.makeText(context, "Vui lòng chạy lệnh ADB trên máy tính để cấp quyền trước!", Toast.LENGTH_LONG).show()
                     }

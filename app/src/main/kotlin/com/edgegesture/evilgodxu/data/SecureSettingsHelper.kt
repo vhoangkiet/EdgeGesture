@@ -73,4 +73,34 @@ object SecureSettingsHelper {
             false
         }
     }
+
+    // 4. Đẩy đáy màn hình lên (Overscan 0..N px)
+    fun setOverscan(bottomPx: Int): Boolean {
+        return try {
+            val serviceManager = Class.forName("android.os.ServiceManager")
+            val getService = serviceManager.getMethod("getService", String::class.java)
+            val binder = getService.invoke(null, "window") as android.os.IBinder
+            val iWindowManagerStub = Class.forName("android.view.IWindowManager\$Stub")
+            val asInterface = iWindowManagerStub.getMethod("asInterface", android.os.IBinder::class.java)
+            val iWindowManager = asInterface.invoke(null, binder)
+
+            val setOverscanMethod = iWindowManager.javaClass.getMethod(
+                "setOverscan",
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType
+            )
+            setOverscanMethod.invoke(iWindowManager, 0, 0, 0, 0, bottomPx)
+            true
+        } catch (_: Exception) {
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("wm", "overscan", "0", "0", "0", bottomPx.toString()))
+                process.waitFor() == 0
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
 }

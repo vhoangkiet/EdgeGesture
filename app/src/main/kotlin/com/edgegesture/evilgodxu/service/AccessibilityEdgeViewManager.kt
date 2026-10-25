@@ -57,6 +57,10 @@ class AccessibilityEdgeViewManager(
     }
 
     fun applySettings(settings: LiteSettings, settingsProvider: () -> LiteSettings) {
+        if (com.edgegesture.evilgodxu.data.SecureSettingsHelper.hasPermission(context)) {
+            val targetOverscan = if (settings.enableOverscanNavBar) settings.overscanHeightPx else 0
+            com.edgegesture.evilgodxu.data.SecureSettingsHelper.setOverscan(targetOverscan)
+        }
         updateScreenDimensions()
         removeViews()
 
@@ -124,15 +128,18 @@ class AccessibilityEdgeViewManager(
 
         // 4. Tạo và gắn cạnh dưới (Home & Recent Apps)
         if (settings.isBottomEnabled && (!isKeyboardVisible || !settings.avoidKeyboard)) {
+            val isOverscan = settings.enableOverscanNavBar
+            val overscanPx = if (isOverscan) settings.overscanHeightPx else 0
             val bottomWidthPx = (screenWidth * settings.bottomWidthPercent / 100)
-            val bottomHeightPx = (settings.bottomHeightDp * density).toInt()
+            val bottomHeightPx = (settings.bottomHeightDp * density).toInt() + overscanPx
+            val bottomY = if (isOverscan) -overscanPx else 0
 
             val params = createTouchLayoutParams(
                 width = bottomWidthPx,
                 height = bottomHeightPx,
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
                 x = 0,
-                y = 0
+                y = bottomY
             )
             val view = View(context).apply {
                 setBackgroundColor(Color.TRANSPARENT)
@@ -144,21 +151,29 @@ class AccessibilityEdgeViewManager(
 
         // 5. Tạo và gắn thanh Pixel Navigation Pill
         if (settings.showPill && (!isKeyboardVisible || !settings.avoidKeyboard)) {
+            val isOverscan = settings.enableOverscanNavBar
+            val overscanPx = if (isOverscan) settings.overscanHeightPx else 0
             val pillWidthPx = settings.pillWidthDp * density
             val pillHeightPx = settings.pillHeightDp * density
             val pillMarginBottomPx = settings.pillBottomMarginDp * density
-            // Chiều cao container nhỏ gọn sát đáy màn hình
-            val containerHeightPx = (pillHeightPx + pillMarginBottomPx + 16f * density).toInt()
+
+            val containerHeightPx = if (isOverscan) overscanPx else (pillHeightPx + pillMarginBottomPx + 16f * density).toInt()
+            val pillY = if (isOverscan) -overscanPx else 0
 
             val pill = PillBarView(context).apply {
-                updateDimensions(pillWidthPx, pillHeightPx, pillMarginBottomPx)
+                updateDimensions(
+                    widthPx = pillWidthPx,
+                    heightPx = pillHeightPx,
+                    marginBottomPx = pillMarginBottomPx,
+                    isCenteredVertically = isOverscan
+                )
             }
             val pillParams = createPillLayoutParams(
                 width = (pillWidthPx * 1.3f).toInt(),
                 height = containerHeightPx,
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
                 x = 0,
-                y = 0
+                y = pillY
             )
             pillView = pill
             safeAddView(pill, pillParams)

@@ -105,8 +105,13 @@ class MainActivity : ComponentActivity() {
 }
 
 fun isAccessibilityServiceEnabled(context: Context): Boolean {
-    if (EdgeGestureAccessibilityService.isServiceRunning()) return true
+    val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
+    val runningServices = am?.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
     val expectedComponentName = "${context.packageName}/${EdgeGestureAccessibilityService::class.java.canonicalName}"
+    if (runningServices?.any { it.id.equals(expectedComponentName, ignoreCase = true) } == true) {
+        return true
+    }
+
     val enabledServices = Settings.Secure.getString(
         context.contentResolver,
         Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
@@ -148,7 +153,7 @@ fun MainScreen(
                 isStockBackDisabled = SecureSettingsHelper.isStockBackDisabled(context)
                 isMiuiGestureLineHidden = SecureSettingsHelper.isMiuiGestureLineHidden(context)
                 crashLog = CrashHandler.getLatestCrashLog(context)
-                EdgeGestureAccessibilityService.refresh()
+                EdgeGestureAccessibilityService.refresh(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -245,14 +250,14 @@ fun MainScreen(
                     onToggleOverscanNavBar = { checked ->
                         LitePreferences.update { it.copy(enableOverscanNavBar = checked) }
                         SecureSettingsHelper.setOverscan(if (checked) settings.overscanHeightPx else 0)
-                        EdgeGestureAccessibilityService.refresh()
+                        EdgeGestureAccessibilityService.refresh(context)
                     },
                     onOverscanHeightChange = { newHeight ->
                         val h = newHeight.toInt()
                         LitePreferences.update { it.copy(overscanHeightPx = h) }
                         if (settings.enableOverscanNavBar) {
                             SecureSettingsHelper.setOverscan(h)
-                            EdgeGestureAccessibilityService.refresh()
+                            EdgeGestureAccessibilityService.refresh(context)
                         }
                     }
                 )

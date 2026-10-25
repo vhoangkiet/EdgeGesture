@@ -1,6 +1,7 @@
 package com.edgegesture.evilgodxu.data
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,15 +40,24 @@ data class LiteSettings(
 )
 
 object LitePreferences {
+    const val ACTION_SETTINGS_CHANGED = "com.edgegesture.evilgodxu.ACTION_SETTINGS_CHANGED"
     private const val PREF_NAME = "edge_gesture_lite_prefs"
 
     private lateinit var prefs: SharedPreferences
+    private var appContext: Context? = null
     private val _settingsFlow = MutableStateFlow(LiteSettings())
     val settingsFlow: StateFlow<LiteSettings> = _settingsFlow.asStateFlow()
 
     fun init(context: Context) {
+        appContext = context.applicationContext
         if (!::prefs.isInitialized) {
             prefs = context.applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            _settingsFlow.value = loadSettings()
+        }
+    }
+
+    fun reload() {
+        if (::prefs.isInitialized) {
             _settingsFlow.value = loadSettings()
         }
     }
@@ -62,6 +72,14 @@ object LitePreferences {
         val updated = transform(current)
         saveSettings(updated)
         _settingsFlow.value = updated
+
+        // Thông báo cho tiến trình :service qua Broadcast nội bộ
+        try {
+            appContext?.let { ctx ->
+                val intent = Intent(ACTION_SETTINGS_CHANGED).setPackage(ctx.packageName)
+                ctx.sendBroadcast(intent)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun loadSettings(): LiteSettings {

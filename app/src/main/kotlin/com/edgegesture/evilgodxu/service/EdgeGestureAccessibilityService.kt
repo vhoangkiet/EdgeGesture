@@ -1,11 +1,23 @@
 package com.edgegesture.evilgodxu.service
 
 import android.accessibilityservice.AccessibilityService
+import android.app.AlarmManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Configuration
+import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import androidx.core.app.NotificationCompat
+import com.edgegesture.evilgodxu.MainActivity
+import com.edgegesture.evilgodxu.R
 import com.edgegesture.evilgodxu.data.LitePreferences
 import com.edgegesture.evilgodxu.data.LiteSettings
 import kotlinx.coroutines.CoroutineScope
@@ -20,12 +32,20 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
 
     companion object {
         private const val TAG = "EdgeGestureService"
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "edge_gesture_foreground_channel"
         private var instanceRef: WeakReference<EdgeGestureAccessibilityService>? = null
 
         fun isServiceRunning(): Boolean = instanceRef?.get() != null
 
-        fun refresh() {
+        fun refresh(context: Context? = null) {
             instanceRef?.get()?.reloadSettings()
+            try {
+                context?.let { ctx ->
+                    val intent = Intent(LitePreferences.ACTION_SETTINGS_CHANGED).setPackage(ctx.packageName)
+                    ctx.sendBroadcast(intent)
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -40,22 +60,85 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
         LitePreferences.getSettings()
     }
 
+    private val settingsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            try {
+                LitePreferences.reload()
+                reloadSettings()
+            } catch (e: Exception) {
+                Log.e(TAG, "Lỗi cập nhật cấu hình từ broadcast: ${e.message}")
+            }
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instanceRef = WeakReference(this)
         LitePreferences.init(this)
 
+        startForegroundNotification()
+
         gestureDetector = LiteGestureDetector(this, this)
         edgeViewManager = AccessibilityEdgeViewManager(this, gestureDetector)
 
-        // Lắng nghe thay đổi cấu hình và cập nhật overlay ngay lập tức
+        // Lắng nghe thay đổi cấu hình nội bộ
         LitePreferences.settingsFlow
             .onEach { settings ->
                 edgeViewManager.applySettings(settings, settingsProvider)
             }
             .launchIn(serviceScope)
 
+        // Đăng ký nhận Broadcast đồng bộ từ tiến trình UI (MainActivity)
+        try {
+            val filter = IntentFilter(LitePreferences.ACTION_SETTINGS_CHANGED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(settingsReceiver, filter)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "registerReceiver error: ${e.message}")
+        }
+
         Log.d(TAG, "EdgeGestureAccessibilityService connected")
+    }
+
+    private fun startForegroundNotification() {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Dịch vụ chạy ngầm EdgeGesture",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Duy trì cử chỉ hoạt động ổn định khi vuốt xóa app khỏi Đa nhiệm"
+                    setShowBadge(false)
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("EdgeGesture Lite")
+                .setContentText("Cử chỉ đang chạy ngầm liên tục")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+
+            startForeground(NOTIFICATION_ID, notification)
+            Log.d(TAG, "startForeground notification started")
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed: ${e.message}")
+        }
     }
 
     override fun onBack() {
@@ -171,8 +254,36 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
         }
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d(TAG, "onTaskRemoved: app swiped from recents - scheduling auto-restart")
+        try {
+            if (LitePreferences.getSettings().isServiceEnabled) {
+                val restartIntent = Intent(this, BootReceiver::class.java).apply {
+                    action = BootReceiver.ACTION_RESTART_SERVICE
+                }
+                val pending = PendingIntent.getBroadcast(
+                    this,
+                    99,
+                    restartIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                am.set(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + 500,
+                    pending
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onTaskRemoved alarm error: ${e.message}")
+        }
+    }
+
     override fun onDestroy() {
-        super.onDestroy()
+        try {
+            unregisterReceiver(settingsReceiver)
+        } catch (_: Exception) {}
         try {
             if (::edgeViewManager.isInitialized) {
                 edgeViewManager.removeViews()
@@ -184,5 +295,30 @@ class EdgeGestureAccessibilityService : AccessibilityService(), LiteGestureDetec
             instanceRef = null
             Log.d(TAG, "EdgeGestureAccessibilityService destroyed")
         }
+
+        // Nếu service bị kill bất ngờ trong khi người dùng vẫn bật cử chỉ, tự động đánh thức và kích hoạt lại
+        try {
+            if (LitePreferences.getSettings().isServiceEnabled) {
+                val restartIntent = Intent(this, BootReceiver::class.java).apply {
+                    action = BootReceiver.ACTION_RESTART_SERVICE
+                }
+                val pending = PendingIntent.getBroadcast(
+                    this,
+                    98,
+                    restartIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                am.set(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + 800,
+                    pending
+                )
+                Log.d(TAG, "onDestroy: scheduled auto-restart alarm")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onDestroy restart alarm error: ${e.message}")
+        }
     }
 }
+

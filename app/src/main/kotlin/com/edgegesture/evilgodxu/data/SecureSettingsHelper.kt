@@ -126,6 +126,21 @@ object SecureSettingsHelper {
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                     newEnabledServices
                 )
+            } else {
+                // Nếu đã có trong danh sách nhưng tiến trình bị kill, tạm gỡ ra rồi ghi lại
+                // để bắt buộc AccessibilityManagerService của Android kích hoạt ContentObserver và bind lại service ngay
+                val filtered = serviceList.filterNot { it.equals(serviceComponent, ignoreCase = true) }.joinToString(":")
+                Settings.Secure.putString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    filtered
+                )
+                val restored = if (filtered.isBlank()) serviceComponent else "$filtered:$serviceComponent"
+                Settings.Secure.putString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    restored
+                )
             }
             Settings.Secure.putString(
                 context.contentResolver,
@@ -138,3 +153,4 @@ object SecureSettingsHelper {
         }
     }
 }
+
